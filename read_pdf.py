@@ -43,7 +43,6 @@ def get_transactions_dbs(lines):
     transactions = []
     is_paylah = False
     for page in lines.pages:
-        # print("INSIDE FOR LOOP")
         text = page.extract_text()
         if text:
             lines = text.split("\n")
@@ -55,12 +54,9 @@ def get_transactions_dbs(lines):
                 match = date_pattern.search(line)
 
                 if match:
-                    print(line)
                     line_arr = line.split()
                     if 'CR' in line_arr[-1]:
                         continue
-                        
-                    print(line_arr)
 
                     trans_date = line_arr[0] + ' ' + line_arr[1]
                     if line_arr[-1] == "DB":
