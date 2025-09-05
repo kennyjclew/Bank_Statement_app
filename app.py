@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from flask import Flask, request, render_template_string, jsonify
 from flask_httpauth import HTTPBasicAuth
 from werkzeug.security import generate_password_hash, check_password_hash
-
+import csv
 # Google Sheets API
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -55,14 +55,47 @@ def get_service():
             token.write(creds.to_json())
     return build("sheets", "v4", credentials=creds)
 
+def load_labels(csv_path="transaction_labels.csv"):
+    """
+    Load type-keyword mapping from CSV and remove spaces for matching.
+    """
+    labels = []
+    try:
+        with open(csv_path, newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                type_label = row.get("Type", "").strip().upper()
+                remarks = row.get("Remarks", "").replace(" ", "").upper()
+                description = row.get("Description", "").replace(" ", "").upper()
+                if type_label and (remarks or description):
+                    labels.append((type_label, [remarks, description]))
+    except FileNotFoundError:
+        logger.warning(f"⚠️ Label CSV file not found: {csv_path}")
+    return labels
+
 def bulk_add_rows(spreadsheet_id, transactions, sheet_name="Transactions"):
     """Bulk append multiple transactions into Google Sheets in one call."""
     try:
         service = get_service()
         values = []
+        # Load type labels from CSV
+        labels = load_labels()
+
         for txn in transactions:
             txn_date, description, amount, source = txn
-            values.append([txn_date, amount, description, "", source])
+            txn_type = "OTHER"
+
+            # Remove spaces for matching
+            desc_normalized = description.replace(" ", "").upper()
+
+            for type_label, keywords in labels:
+                for keyword in keywords:
+                    if keyword and keyword in desc_normalized:
+                        txn_type = type_label
+                        break
+                if txn_type != "OTHER":
+                    break
+            values.append([txn_date, amount, description, txn_type, source])
         body = {"majorDimension": "ROWS", "values": values}
         response = service.spreadsheets().values().append(
             spreadsheetId=spreadsheet_id,
@@ -232,4 +265,4 @@ def manual_transaction():
 
 # ---------------- Run ----------------
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=5002)
