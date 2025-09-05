@@ -4,6 +4,8 @@ import tempfile
 import pdfplumber
 from dotenv import load_dotenv
 from flask import Flask, request, render_template_string, jsonify
+from flask_httpauth import HTTPBasicAuth
+from werkzeug.security import generate_password_hash, check_password_hash
 
 # Google Sheets API
 from google.auth.transport.requests import Request
@@ -25,10 +27,12 @@ logger = logging.getLogger(__name__)
 # ---------------- Load Config ----------------
 load_dotenv()
 SPREADSHEET_ID = os.getenv("SPREADSHEET_ID")
+WEB_USERNAME = os.getenv("WEB_USERNAME")
+WEB_PASSWORD = os.getenv("WEB_PASSWORD")
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
-if not SPREADSHEET_ID:
-    logger.error("❌ Missing SPREADSHEET_ID in .env")
+if not SPREADSHEET_ID or not WEB_USERNAME or not WEB_PASSWORD:
+    logger.error("❌ Missing SPREADSHEET_ID or WEB_USERNAME/WEB_PASSWORD in .env")
     exit(1)
 
 # ---------------- Google Sheets ----------------
@@ -55,21 +59,17 @@ def bulk_add_rows(spreadsheet_id, transactions, sheet_name="Transactions"):
     """Bulk append multiple transactions into Google Sheets in one call."""
     try:
         service = get_service()
-
         values = []
         for txn in transactions:
             txn_date, description, amount, source = txn
             values.append([txn_date, amount, description, "", source])
-
         body = {"majorDimension": "ROWS", "values": values}
-
         response = service.spreadsheets().values().append(
             spreadsheetId=spreadsheet_id,
             range=sheet_name,
             body=body,
             valueInputOption="USER_ENTERED"
         ).execute()
-
         logger.info(f"✅ Bulk upload complete: {response}")
         return True
     except HttpError as err:
@@ -78,14 +78,25 @@ def bulk_add_rows(spreadsheet_id, transactions, sheet_name="Transactions"):
 
 # ---------------- Flask App ----------------
 app = Flask(__name__)
+auth = HTTPBasicAuth()
 
+# ---------------- Password Setup ----------------
+users = {WEB_USERNAME: generate_password_hash(WEB_PASSWORD)}
+
+@auth.verify_password
+def verify_password(username, password):
+    if username in users and check_password_hash(users.get(username), password):
+        return username
+    return None
+
+# ---------------- HTML Upload Form ----------------
 UPLOAD_FORM = """
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Upload PDF Statements</title>
+  <title>Upload PDF Bank Statements</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
     body { background-color: #f8f9fa; }
@@ -149,17 +160,17 @@ UPLOAD_FORM = """
 </html>
 """
 
-
-
+# ---------------- Routes ----------------
 @app.route("/")
+@auth.login_required
 def index():
     return render_template_string(UPLOAD_FORM)
 
 @app.route("/upload", methods=["POST"])
+@auth.login_required
 def upload_pdf():
     if "pdf" not in request.files:
         return "⚠️ No file uploaded", 400
-
     file = request.files["pdf"]
     if file.filename == "":
         return "⚠️ No selected file", 400
@@ -189,13 +200,12 @@ def upload_pdf():
         logger.error(f"Error processing PDF: {e}")
         return f"⚠️ Error processing PDF: {str(e)}", 500
     finally:
-        # Make sure temp file is deleted after processing
         if os.path.exists(tmp_file_path):
             os.remove(tmp_file_path)
             logger.info(f"✅ Temp file deleted: {tmp_file_path}")
 
-
 @app.route("/manual", methods=["POST"])
+@auth.login_required
 def manual_transaction():
     """Add a single manual transaction from JSON request"""
     data = request.json
@@ -220,5 +230,6 @@ def manual_transaction():
         logger.error(f"Manual add failed: {e}")
         return f"⚠️ Error: {str(e)}", 500
 
+# ---------------- Run ----------------
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
