@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pyc
+*.pyo
+*.pyd
+*.pycache/
+*.env
+*.env.*
+venv/
+env/
+ENV/
+*.sqlite3
+*.db
+
+# Flask / Web
+instance/
+*.log
+
+# PDF / Temporary files
+*.pdf
+tmp/
+*.tmp
+
+# Google API credentials
+credentials.json
+token.json
+
+# IDE / Editor
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Mac specific
+.AppleDouble
+.LSOverride
+
+# Node / front-end (if any)
+node_modules/
+dist/

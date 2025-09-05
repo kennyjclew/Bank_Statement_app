@@ -1,0 +1,11 @@
+Flask==2.3.3
+python-dotenv==1.0.0
+pdfplumber==0.10.1
+google-api-python-client==2.97.0
+google-auth==2.24.0
+google-auth-oauthlib==1.1.0
+requests==2.32.0
+python-telegram-bot==20.5
+cryptography==42.0.0
+pillow==10.0.0
+protobuf==4.23.3
