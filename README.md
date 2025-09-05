@@ -32,7 +32,7 @@ This guide covers setting up environment variables, Google Sheets credentials, a
 
 ---
 
-## **2️⃣ Environment Variables (`.env`)**
+## **2 Environment Variables (`.env`)**
 
 Create a file named `.env` in the root of the project:
 
@@ -44,7 +44,8 @@ SPREADSHEET_ID=your_google_sheets_id_here
 WEB_USERNAME=your_username_here
 WEB_PASSWORD=your_password_here
 
-Google Sheets Credentials (credentials.json)
+## **3 Google Sheets Credentials (credentials.json)**
+
 1. Go to Google Cloud Console → APIs & Services → Credentials.
 2. Create an OAuth 2.0 Client ID (Desktop App).
 3. Download the file and save it as credentials.json in the project root.
