@@ -10,7 +10,7 @@ It supports multiple PDFs at once and handles different bank statement formats.
 
 - Upload **single or multiple PDF statements** via Flask web interface.  
 - Optional **Telegram bot** interface for uploading PDFs.  
-- Automatically detects the bank (UOB, DBS, CITI) and parses transactions.  
+- Automatically detects the bank (UOB, DBS, CITI, OCBC) and parses transactions.  
 - Supports amounts with commas and decimals.  
 - Filters out **summary lines**, extra dates, or `$` symbols.  
 - Uploads transactions to **Google Sheets**.  
@@ -43,6 +43,7 @@ SPREADSHEET_ID=your_google_sheets_id_here
 # Flask web authentication
 WEB_USERNAME=your_username_here
 WEB_PASSWORD=your_password_here
+
 
 ## **3 Google Sheets Credentials (credentials.json)**
 
