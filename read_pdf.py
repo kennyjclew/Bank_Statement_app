@@ -6,6 +6,8 @@ import os
 import time
 from os import listdir
 from os.path import isfile, join
+from datetime import datetime
+
 
 def get_transactions_uob(lines):
     transactions = []
@@ -85,11 +87,10 @@ def get_transactions_citi(lines):
 
                 if match:
                     line_arr = line.split()
-                    print(line_arr)
+                    # print(line_arr)
                     if '(' in line_arr[-1]:
                         continue
                     if len(line_arr) > 1:
-
                         trans_date = line_arr[0]
                         description = " ".join(line_arr[1:-1])
                         amount = line_arr[-1]
@@ -97,49 +98,94 @@ def get_transactions_citi(lines):
                         source = 'CITI'
                         transactions.append([trans_date, description.strip(), amount, source])
     return transactions
-
-
-# for pdffile in onlyfiles:
-#     if '.DS' in pdffile:
-#         continue
-#     pdf_file = my_dir+'/'+pdffile
-#     csv_file = my_dir+'/csv/'+pdffile+".csv"
-#     # Open and read the PDF
-#     with pdfplumber.open(pdf_file) as pdf:
-#         # for page in pdf.pages:
-#         print(pdf)
-#         text = pdf.pages[0].extract_text()
-#         # print(text)
-#         # print(type(text))
-#         if text:
-#             lines = text.split("\n")
-#             for line in lines:
-
-#                 if "DBS" in line:
-#                     transactions = get_transactions_dbs(pdf)
-#                     # transactions.append(transactions_result)
-#                     break
-
-#                 if "UOB" in line:
-#                     transactions = get_transactions_uob(pdf)
-#                     break
+def get_transactions_ocbc(lines):
+    date_pattern = re.compile(r"^\d{2}\/\d{2}")
+    transactions = []
+    for page in lines.pages:
+        text = page.extract_text()
+        if text:
+            lines = text.split("\n")
+            
+            for line in lines:
                 
-#                 if "CITI" in line:
-#                     transactions = get_transactions_citi(pdf)
-#                     break
+                # print(line)
+                # Search for the pattern
+                match = date_pattern.search(line)
+                if match:
+                    line_clean = re.sub(r'\b(detimiL|LIMITED)\b', '', line, flags=re.IGNORECASE)
 
+                    # Remove extra spaces
+                    line_clean = " ".join(line_clean.split())
+                    # print("Cleaned line:", line_clean)
 
+                    # Split into parts
+                    line_arr = line_clean.split()
+                    # line_arr = line.split()
+                    if '(' in line_arr[-1]:
+                        continue
+                    if len(line_arr) > 1:
+                        date_str = line_arr[0]
+
+                        # Parse with day/month
+                        dt = datetime.strptime(date_str, "%d/%m")
+
+                        # Format into "29 Aug"
+                        trans_date = dt.strftime("%d %b")
+                        description = " ".join(line_arr[1:-1])
+                        amount = line_arr[-1]
+                        amount = amount.replace(",", "")
+                        source = 'OCBC'
+                        transactions.append([trans_date, description.strip(), amount, source])
+    return transactions
+
+if __name__ == "__main__":
+
+    #, "Paylah"
+    my_dir = os.path.abspath(os.path.join("..","..", "Desktop", "Documents", "Credit_Card_Statements"))
+    print(my_dir)
+    onlyfiles = [f for f in listdir(my_dir) if isfile(join(my_dir, f))]
+    for pdffile in onlyfiles:
+        if '.DS' in pdffile:
+            continue
+        pdf_file = my_dir+'/'+pdffile
+        csv_file = my_dir+'/csv/'+pdffile+".csv"
+        # Open and read the PDF
+        with pdfplumber.open(pdf_file) as pdf:
+            # for page in pdf.pages:
+            print(pdf)
+            text = pdf.pages[0].extract_text()
+            # print(text)
+            # print(type(text))
+            if text:
+                lines = text.split("\n")
+                for line in lines:
+
+                    if "DBS" in line:
+                        transactions = get_transactions_dbs(pdf)
+                        # transactions.append(transactions_result)
+                        break
+
+                    if "UOB" in line:
+                        transactions = get_transactions_uob(pdf)
+                        break
                     
+                    if "CITI" in line:
+                        transactions = get_transactions_citi(pdf)
+                        break
+                    if "OCBC" in line:
+                        transactions = get_transactions_ocbc(pdf)
+                        break
 
-#     print('hello')
-# # print(transactions)
 
-# # Save extracted transactions to a CSV file
-#     with open(csv_file, "w", newline="", encoding="utf-8") as f:
-#         writer = csv.writer(f)
-#         writer.writerow(["Post Date", "Transaction Date", "Description", "Amount (SGD)"])
-#         writer.writerows(transactions)
+                        
+    # print(transactions)
 
-#     print(f"CSV file '{csv_file}' created successfully with {len(transactions)} transactions!")
+    # Save extracted transactions to a CSV file
+        with open(csv_file, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(["Post Date", "Description", "Amount(SGD)", "Source"])
+            writer.writerows(transactions)
+
+        print(f"CSV file '{csv_file}' created successfully with {len(transactions)} transactions!")
 
 

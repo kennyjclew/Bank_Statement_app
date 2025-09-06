@@ -15,7 +15,7 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 # PDF parsers
-from read_pdf import get_transactions_uob, get_transactions_dbs, get_transactions_citi
+from read_pdf import get_transactions_uob, get_transactions_dbs, get_transactions_citi, get_transactions_ocbc
 
 # ---------------- Logging ----------------
 logging.basicConfig(
@@ -136,58 +136,156 @@ UPLOAD_FORM = """
     .container { max-width: 600px; margin-top: 80px; background: #fff; padding: 30px; border-radius: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.1);}
     .btn-primary { width: 100%; }
     h1 { font-size: 1.8rem; margin-bottom: 20px; text-align: center; color: #343a40; }
+
+    /* Drag-and-drop area */
+    #drop-area {
+      border: 2px dashed #6c757d;
+      border-radius: 12px;
+      padding: 40px;
+      text-align: center;
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s;
+      color: #6c757d;
+      margin-bottom: 20px;
+    }
+    #drop-area.dragover {
+      background: #e9ecef;
+      border-color: #0d6efd;
+      color: #0d6efd;
+    }
+    #file-list li {
+      margin-bottom: 5px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
   </style>
 </head>
+
 <body>
   <div class="container">
     <h1>Upload PDF Statements</h1>
-    <form id="upload-form">
-      <div class="mb-3">
-        <label for="pdfs" class="form-label">Choose PDF Files</label>
-        <input class="form-control" type="file" id="pdfs" name="pdfs" accept=".pdf" multiple required>
-      </div>
-      <button type="submit" class="btn btn-primary">Upload & Process</button>
-    </form>
+
+    <div id="drop-area">
+        <p id="drop-text">Drag & drop PDF files here <br> or click to select</p>
+        <ul id="file-list" style="list-style:none; padding-left:0; margin-top:10px;"></ul>
+        <input type="file" id="pdfs" name="pdfs" accept=".pdf" multiple style="display:none;">
+    </div>
+
+    <button id="upload-btn" class="btn btn-primary">Upload & Process</button>
+
     <div id="result" class="mt-3"></div>
   </div>
+
   <script>
-    const form = document.getElementById('upload-form');
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const files = document.getElementById('pdfs').files;
-      if (!files.length) return alert("Please select at least one PDF file!");
-      
-      const resultDiv = document.getElementById('result');
-      resultDiv.innerHTML = 'Processing...';
+const dropArea = document.getElementById('drop-area');
+const fileInput = document.getElementById('pdfs');
+const dropText = document.getElementById('drop-text');
+const fileList = document.getElementById('file-list');
+const uploadBtn = document.getElementById('upload-btn');
+let selectedFiles = [];
 
-      let successCount = 0;
-      let failCount = 0;
+// Click to open file dialog
+dropArea.addEventListener('click', () => fileInput.click());
 
-      for (let i = 0; i < files.length; i++) {
-        const formData = new FormData();
-        formData.append('pdf', files[i]);
+// File input change
+fileInput.addEventListener('change', (e) => {
+  addFiles(Array.from(e.target.files));
+});
 
-        try {
-          const response = await fetch('/upload', { method: 'POST', body: formData });
-          if (!response.ok) {
-            failCount++;
-            const text = await response.text();
-            console.error(`File ${files[i].name} failed:`, text);
-          } else {
-            const data = await response.json();
-            successCount += data.transactions_uploaded || 0;
-          }
-        } catch (err) {
-          failCount++;
-          console.error(`File ${files[i].name} error:`, err.message);
-        }
-      }
+// Drag events
+dropArea.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  dropArea.classList.add('dragover');
+});
+dropArea.addEventListener('dragleave', (e) => {
+  e.preventDefault();
+  dropArea.classList.remove('dragover');
+});
+dropArea.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dropArea.classList.remove('dragover');
+  const files = Array.from(e.dataTransfer.files).filter(f => f.name.toLowerCase().endsWith('.pdf'));
+  addFiles(files);
+});
 
-      resultDiv.innerHTML = `<div class="alert alert-success">✅ Total transactions uploaded: ${successCount}</div>`;
-      if (failCount > 0) {
-        resultDiv.innerHTML += `<div class="alert alert-warning">⚠️ ${failCount} file(s) failed to process.</div>`;
-      }
+function addFiles(files) {
+  selectedFiles = selectedFiles.concat(files);
+  updateFileList();
+}
+
+function updateFileList() {
+  fileList.innerHTML = "";
+  if (!selectedFiles.length) {
+    dropText.innerHTML = "Drag & drop PDF files here <br> or click to select";
+    return;
+  }
+  dropText.textContent = "Selected files:";
+  selectedFiles.forEach((file, index) => {
+    const li = document.createElement('li');
+    li.textContent = file.name;
+
+    // Add remove button
+    const removeBtn = document.createElement('button');
+    removeBtn.textContent = "❌";
+    removeBtn.className = "btn btn-sm btn-outline-danger";
+    removeBtn.style.marginLeft = "10px";
+
+
+    removeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();  // prevent triggering dropArea click
+        selectedFiles.splice(index, 1);
+
+        // Reset the file input to allow re-selecting the same file
+        fileInput.value = '';
+
+        updateFileList();
     });
+
+    li.appendChild(removeBtn);
+    fileList.appendChild(li);
+  });
+}
+
+
+// Upload files
+uploadBtn.addEventListener('click', async () => {
+  if (!selectedFiles.length) return alert("Please select at least one PDF file!");
+  const resultDiv = document.getElementById('result');
+  resultDiv.innerHTML = 'Processing...';
+
+  let successCount = 0;
+  let failCount = 0;
+
+  for (let i = 0; i < selectedFiles.length; i++) {
+    const formData = new FormData();
+    formData.append('pdf', selectedFiles[i]);
+
+    try {
+      const response = await fetch('/upload', { method: 'POST', body: formData });
+      if (!response.ok) {
+        failCount++;
+        const text = await response.text();
+        console.error(`File ${selectedFiles[i].name} failed:`, text);
+      } else {
+        const data = await response.json();
+        successCount += data.transactions_uploaded || 0;
+      }
+    } catch (err) {
+      failCount++;
+      console.error(`File ${selectedFiles[i].name} error:`, err.message);
+    }
+  }
+
+  resultDiv.innerHTML = `<div class="alert alert-success">✅ Total transactions uploaded: ${successCount}</div>`;
+  if (failCount > 0) {
+    resultDiv.innerHTML += `<div class="alert alert-warning">⚠️ ${failCount} file(s) failed to process.</div>`;
+  }
+
+  // Clear selected files after upload
+  selectedFiles = [];
+  updateFileList();
+});
   </script>
 </body>
 </html>
@@ -221,6 +319,8 @@ def upload_pdf():
                 transactions = get_transactions_uob(pdf)
             elif "CITI" in first_page_text:
                 transactions = get_transactions_citi(pdf)
+            elif "OCBC" in first_page_text:
+                transactions = get_transactions_ocbc(pdf)
             else:
                 return "⚠️ Bank not recognized in PDF", 400
 
